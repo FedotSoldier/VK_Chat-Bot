@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 
 #vk=vk_api.VkApi(login='login', password='12345')
 vk=vk_api.VkApi(token='ea8d297a72d3e516eab6f27152e1204cb4cdca86f5518622d7d49981363fd45e98fd0f2b0215954d854a0')
-vk._auth_token()
+# vk._auth_token()
 
 values={'out':0, 'count':100, 'offset':0}
 response=vk.method('messages.getConversations', values) # Чтобы нам отвечали, даже если мы написали в первый раз
