@@ -18,14 +18,14 @@ while True:
 	response=vk.method('messages.getConversations', values)
 	#print(response['items'])
 	#print('-------------------------------------------------------------------')
-	if response['items'] and response['items'][0]['last_message']['from_id']>0:	# response['items'][0]['conversation']['unanswered'] # Нет у бота
+	if response['items'] and response['items'][0]['last_message']['from_id'] > 0:	# response['items'][0]['conversation']['unanswered'] # Нет у бота
 		#if len(response['items'][0])>1:
 			#write_msg(response['items'][0]['conversation']['peer']['id'], 'Канцелярия не успевает. Пишите по одному сообщению, дожидаясь ответа')
 			#print(str(response)+'\n' + 'K')
 		response=response['items'][0]
 		#values['last_message_id']=response['conversation']['last_message_id'] # Эту строчку можно оставить, но в методе 'messages.getConversations' ее нет.
 		#print(response)
-		if response['last_message']['text'].lower()=='привет':
+		if response['last_message']['text'].lower() == 'привет':
 			write_msg(response['conversation']['peer']['id'], 'Не "Привет", а доброго времени суток, товарищ!')
 			#print('A')
 		elif response['last_message']['text'].lower()=='/usd' or response['last_message']['text'].lower()=='/eur':
