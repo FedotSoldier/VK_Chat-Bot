@@ -2,7 +2,8 @@
 import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard
-
+from Constants import login, password, group_id1, token1, group_id2, token2 # scope=397381
+# https://gist.github.com/Zaur-Lumanov/0528f3b3ec4f5fe8f8d39449949dcc02 # errors list 
 def main():
 	keyboard = VkKeyboard(one_time=True)
 
@@ -12,17 +13,16 @@ def main():
 	keyboard.add_button(label='Red', color='negative')
 	keyboard.add_button(label='Primary', color='primary')
 
-	token = 'ea8d297a72d3e516eab6f27152e1204cb4cdca86f5518622d7d49981363fd45e98fd0f2b0215954d854a0' # scope=397381
-
-	vk_session = vk_api.VkApi(login='+79151472057', 
-							password='010702777',
-							token=token)
+	vk_session = vk_api.VkApi(login=login, 
+							password=password,
+							token=token1)
 	vk_session.auth(token_only=True)
+	user = vk_session.get_api()
 
-	vk_community = vk_api.VkApi(token=token)
+	vk_community = vk_api.VkApi(token=token1)
 	vk = vk_community.get_api()
 
-	longpoll = VkBotLongPoll(vk_session, '168296857')
+	longpoll = VkBotLongPoll(vk_session, group_id1)
 
 	for event in longpoll.listen():
 
@@ -45,6 +45,33 @@ def main():
 						message='Клавиатуру в студию!',
 						keyboard=keyboard.get_keyboard()
 					)
+
+			elif event.obj.text.lower() == 'wall.post':
+				user.wall.post(
+					owner_id=-group_id1,
+					from_group=1,
+					message='Наш бот научился публиковать посты с медиавложениями! (Это его запись)',
+					attachments='photo223990687_456240130,'
+					)
+
+			elif event.obj.text.lower() == 'wall.createcomment':
+				user.wall.createComment(
+					owner_id=-group_id1,
+					post_id=4,
+					from_group=group_id1,
+					message='Он ещё и комментировать умеет'
+					)
+
+			elif event.obj.text.lower() == 'likes.add':  # Поставить лайки всем комментариям записи с идентификатором (id) 4
+				for post in user.wall.get(owner_id=-168296857)['items']:  # Все посты сообщества
+					if post['id'] == 4:  # Лайкаем комментарии только четвертого поста
+						for comment in user.wall.getComments(owner_id=-168296857, post_id=post['id'], need_likes=1)['items']:
+							if comment['likes']['count'] == 0:
+								user.likes.add(
+									type='comment',  # https://vk.com/dev/likes.add
+									owner_id=-168296857,
+									item_id=comment['id']
+									)
 
 			else:
 				vk.messages.send(
@@ -75,14 +102,20 @@ def main():
 			print(event.obj.user_id, end=' ')
 			print('Вступил в группу!')
 			'''
-			pass
+			messages.send(
+				user_id=event.obj.user_id,
+				message='Поздравляем со вступлением в нашу группу!'
+				)
 
 		elif event.type == VkBotEventType.GROUP_LEAVE:
 			'''
 			print(event.obj.user_id, end=' ')
 			print('Покинул группу!')
 			'''
-			pass
+			messages.send(
+				user_id=event.obj.user_id,
+				message='Как вы могли бросить нас! Возвращайтесь быстрее'
+				)
 
 		else:
 			# print(event.type)

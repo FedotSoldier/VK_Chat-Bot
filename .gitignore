@@ -2,3 +2,6 @@
 vk_config.v2.json
 VK_Chat_Bot.py
 Bot_example_from_docs.py
+# Constants.py
+__pycache__/
+photos/
