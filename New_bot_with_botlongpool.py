@@ -3,8 +3,83 @@ import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard
 from Constants import login, password, group_id1, token1, group_id2, token2 # scope=397381
-# https://gist.github.com/Zaur-Lumanov/0528f3b3ec4f5fe8f8d39449949dcc02 # errors list 
+import requests
+from bs4 import BeautifulSoup
+import re
+# https://gist.github.com/Zaur-Lumanov/0528f3b3ec4f5fe8f8d39449949dcc02 # errors list
 def main():
+
+	def getrates():
+		page = requests.get('https://www.sberometer.ru/cbr/')
+		soup = BeautifulSoup(page.text, 'html.parser')
+		tags = soup.select('td > a')[0:3]  # Первые три тэга a, которые сразу после тэга td
+		courses = [tag.getText() for tag in tags]
+		currency_list = ['USD : ', 'EUR : ', 'GBP : ']
+		for i in range(len(currency_list)):
+			currency_list[i] += courses[i]
+		return ' | '.join(currency_list)
+
+	def getweather():
+		page = requests.get('https://yandex.ru/search/?text=погода%20в%20москве%20на%203%20дня&lr=213&clid=2270455&win=334')
+		soup = BeautifulSoup(page.text, 'html.parser')
+		day_temp   = soup.select('.weather-forecast__tile-day')  # Список из тэгов с температурой на четыре дня
+		night_temp = soup.select('.weather-forecast__tile-night')
+		day_temp   = [temp.getText() for temp in day_temp]
+		night_temp = [temp.getText() for temp in night_temp]
+		answer = ''' Погода
+					сегодня днём {}°,
+					сегодня ночью {}°,
+					завтра днём {}°,
+					завтра ночью {}°,
+					послезавтра днём {}°,
+					послезавтра ночью {}°,
+					через три дня днём {}°,
+					через три дня ночью {}°
+					'''.format(
+							   day_temp[0],
+							   night_temp[0],
+							   day_temp[1],
+							   night_temp[1],
+							   day_temp[2],
+							   night_temp[2],
+							   day_temp[3],
+							   night_temp[3],
+							   )
+		return answer
+
+	def forecast(ch):
+		page = requests.get('https://yandex.ru/pogoda/moscow/month')
+		soup = BeautifulSoup(page.text, 'html.parser')
+		
+		days = soup.select('.climate-calendar-day__detailed-day')  # Все даты с прогнозами
+		temps_night = soup.select('.climate-calendar-day__detailed-basic-temp-night .temp__value')  # Все ночные температуры
+		temps_day   = soup.select('.climate-calendar-day__detailed-basic-temp-day .temp__value')    # Все дневные температуры
+		first_day   = soup.select_one('.climate-calendar-day__day')  # Номер первого дня в прогнозе
+		curr_day    = soup.select('.climate-calendar-day_current_day .climate-calendar-day__row .climate-calendar-day__day')  # Номер текущего дня месяца
+
+		days = [tag.getText() for tag in days]
+		temps_night = [tag.getText() for tag in temps_night]
+		temps_day   = [tag.getText() for tag in temps_day  ]
+		curr_day    =  curr_day[0].getText()
+		first_day   = first_day.getText()
+		difference  = int(curr_day) - int(first_day)  # Разница между текущим днём и первым в прогнозе
+
+		if ch < 1: ch = 1  # Проверка на дурака-пользователя
+		forecast = ''
+
+		for day in range(ch):
+			try:
+				forecast += days[day + difference] + '\n'
+				forecast += 'Днём  ' + temps_day   [day + difference] + '\n'
+				forecast += 'Ночью ' + temps_night [day + difference] + '\n'
+				forecast += '===' + '\n'
+			except IndexError:
+				break
+
+		return forecast
+
+	pattern = r'\s*[пП]огода\s*\d*\s*'  # Шаблон для проверки правильного ввода запроса погоды(Например: ' Погода  10   ')
+
 	keyboard = VkKeyboard(one_time=True)
 
 	keyboard.add_button(label='Green', color='positive')
@@ -72,6 +147,25 @@ def main():
 									owner_id=-168296857,
 									item_id=comment['id']
 									)
+
+			elif event.obj.text.lower() == '/getrates':
+				vk.messages.send(
+					user_id=event.obj.from_id,
+					message=getrates()
+					)
+
+			elif event.obj.text.lower() == '/getweather':
+				vk.messages.send(
+					user_id=event.obj.from_id,
+					message=getweather()
+					)
+
+			elif re.match(pattern, event.obj.text.lower()) != None:
+				ch = int(re.findall(r'\d+', event.obj.text.lower())[0])  # Количество дней, для которых нужен прогноз, начиная с сегодняшнего
+				vk.messages.send(
+					user_id=event.obj.from_id,
+					message=forecast(ch)
+					)
 
 			else:
 				vk.messages.send(

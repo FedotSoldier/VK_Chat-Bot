@@ -1,9 +1,9 @@
 import vk_api
 import time, json
 
-token = 'af4a5098f7f8b1782f9087f6cdfd04e6a952d31299e75cc56823cc8a53aa1fa66067cf272f1692982baf6'
+token = 'ea8d297a72d3e516eab6f27152e1204cb4cdca86f5518622d7d49981363fd45e98fd0f2b0215954d854a0'
 # Сменить токен. У меня новый телефон и не могу получить ключ доступа для новой беседы.
-vk=vk_api.VkApi(login='---', token=token)  # scope - права доступа(не знаю точно, что это)
+vk=vk_api.VkApi(login='+7915-------', token=token)  # scope - права доступа(не знаю точно, что это)
 # В поле login рекомендуется указать номер телефона, для автоматического обхода проверки безопасности
 # Насколько я понял многие методы не работают без авторизации
 # То есть некоторые методы недоступны без указания своего логина и пароля
@@ -14,7 +14,7 @@ vk.auth(token_only=True) # vk.auth() не работает без login
 
 print(  # Получаем информацию о чате.
 		#vk.method('messages.getConversations')
-		vk.method('wall.get', {'owner_id':-171852677}),  # messages.getConversations
+		vk.method('wall.get', {'owner_id':-168296857}),  # messages.getConversations
 		# vk.method('users.get')
 		)
 # При использовании методов users.get или docs.get в текущей директории появляется файл vk_config.v2.json с информацией о пользователе
