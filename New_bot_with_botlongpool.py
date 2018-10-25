@@ -3,82 +3,12 @@ import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard
 from Constants import login, password, group_id1, token1, group_id2, token2 # scope=397381
-import requests
-from bs4 import BeautifulSoup
+from Funcs import getrates, getweather, forecast
 import re
 # https://gist.github.com/Zaur-Lumanov/0528f3b3ec4f5fe8f8d39449949dcc02 # errors list
+# https://vk.com/topic-81349839_31476126  # 4, 5, 12, 15, 16 # мгновенный yandex поиск
 def main():
-
-	def getrates():
-		page = requests.get('https://www.sberometer.ru/cbr/')
-		soup = BeautifulSoup(page.text, 'html.parser')
-		tags = soup.select('td > a')[0:3]  # Первые три тэга a, которые сразу после тэга td
-		courses = [tag.getText() for tag in tags]
-		currency_list = ['USD : ', 'EUR : ', 'GBP : ']
-		for i in range(len(currency_list)):
-			currency_list[i] += courses[i]
-		return ' | '.join(currency_list)
-
-	def getweather():
-		page = requests.get('https://yandex.ru/search/?text=погода%20в%20москве%20на%203%20дня&lr=213&clid=2270455&win=334')
-		soup = BeautifulSoup(page.text, 'html.parser')
-		day_temp   = soup.select('.weather-forecast__tile-day')  # Список из тэгов с температурой на четыре дня
-		night_temp = soup.select('.weather-forecast__tile-night')
-		day_temp   = [temp.getText() for temp in day_temp]
-		night_temp = [temp.getText() for temp in night_temp]
-		answer = ''' Погода
-					сегодня днём {}°,
-					сегодня ночью {}°,
-					завтра днём {}°,
-					завтра ночью {}°,
-					послезавтра днём {}°,
-					послезавтра ночью {}°,
-					через три дня днём {}°,
-					через три дня ночью {}°
-					'''.format(
-							   day_temp[0],
-							   night_temp[0],
-							   day_temp[1],
-							   night_temp[1],
-							   day_temp[2],
-							   night_temp[2],
-							   day_temp[3],
-							   night_temp[3],
-							   )
-		return answer
-
-	def forecast(ch):
-		page = requests.get('https://yandex.ru/pogoda/moscow/month')
-		soup = BeautifulSoup(page.text, 'html.parser')
-		
-		days = soup.select('.climate-calendar-day__detailed-day')  # Все даты с прогнозами
-		temps_night = soup.select('.climate-calendar-day__detailed-basic-temp-night .temp__value')  # Все ночные температуры
-		temps_day   = soup.select('.climate-calendar-day__detailed-basic-temp-day .temp__value')    # Все дневные температуры
-		first_day   = soup.select_one('.climate-calendar-day__day')  # Номер первого дня в прогнозе
-		curr_day    = soup.select('.climate-calendar-day_current_day .climate-calendar-day__row .climate-calendar-day__day')  # Номер текущего дня месяца
-
-		days = [tag.getText() for tag in days]
-		temps_night = [tag.getText() for tag in temps_night]
-		temps_day   = [tag.getText() for tag in temps_day  ]
-		curr_day    =  curr_day[0].getText()
-		first_day   = first_day.getText()
-		difference  = int(curr_day) - int(first_day)  # Разница между текущим днём и первым в прогнозе
-
-		if ch < 1: ch = 1  # Проверка на дурака-пользователя
-		forecast = ''
-
-		for day in range(ch):
-			try:
-				forecast += days[day + difference] + '\n'
-				forecast += 'Днём  ' + temps_day   [day + difference] + '\n'
-				forecast += 'Ночью ' + temps_night [day + difference] + '\n'
-				forecast += '===' + '\n'
-			except IndexError:
-				break
-
-		return forecast
-
-	pattern = r'\s*[пП]огода\s*\d*\s*'  # Шаблон для проверки правильного ввода запроса погоды(Например: ' Погода  10   ')
+	pattern = r'\s*[пП]огода\s+[+-]?\d+\s*'  # Шаблон для проверки правильного ввода запроса погоды(Например: ' Погода  10   ')
 
 	keyboard = VkKeyboard(one_time=True)
 
@@ -108,20 +38,23 @@ def main():
 			print(event.obj.from_id)
 			print('Текст:', event.obj.text)
 			'''
-			if event.obj.text.lower() == 'привет':
+
+			mtext = event.obj.text.lower() # Текст сообщения в нижнем регистре(message text)
+
+			if mtext == 'привет':
 				vk.messages.send(
 						user_id=event.obj.from_id,
 						message='Не "Привет", а "Доброго времени суток, товарищ!"'
 					)
 
-			elif event.obj.text.lower() == 'пришли клавиатуру':
+			elif mtext == 'пришли клавиатуру':
 				vk.messages.send(
 						user_id=event.obj.from_id,
 						message='Клавиатуру в студию!',
 						keyboard=keyboard.get_keyboard()
 					)
 
-			elif event.obj.text.lower() == 'wall.post':
+			elif mtext == 'wall.post':
 				user.wall.post(
 					owner_id=-group_id1,
 					from_group=1,
@@ -129,7 +62,7 @@ def main():
 					attachments='photo223990687_456240130,'
 					)
 
-			elif event.obj.text.lower() == 'wall.createcomment':
+			elif mtext == 'wall.createcomment':
 				user.wall.createComment(
 					owner_id=-group_id1,
 					post_id=4,
@@ -137,7 +70,7 @@ def main():
 					message='Он ещё и комментировать умеет'
 					)
 
-			elif event.obj.text.lower() == 'likes.add':  # Поставить лайки всем комментариям записи с идентификатором (id) 4
+			elif mtext == 'likes.add':  # Поставить лайки всем комментариям записи с идентификатором (id) 4
 				for post in user.wall.get(owner_id=-168296857)['items']:  # Все посты сообщества
 					if post['id'] == 4:  # Лайкаем комментарии только четвертого поста
 						for comment in user.wall.getComments(owner_id=-168296857, post_id=post['id'], need_likes=1)['items']:
@@ -148,25 +81,35 @@ def main():
 									item_id=comment['id']
 									)
 
-			elif event.obj.text.lower() == '/getrates':
+			elif mtext == '/getrates':
 				vk.messages.send(
 					user_id=event.obj.from_id,
 					message=getrates()
 					)
 
-			elif event.obj.text.lower() == '/getweather':
+			elif mtext == '/getweather':
 				vk.messages.send(
 					user_id=event.obj.from_id,
 					message=getweather()
 					)
 
-			elif re.match(pattern, event.obj.text.lower()) != None:
-				ch = int(re.findall(r'\d+', event.obj.text.lower())[0])  # Количество дней, для которых нужен прогноз, начиная с сегодняшнего
+			elif re.match(pattern, mtext) != None:
+				ch = int(re.findall(r'.\d+', mtext)[0])  # Количество дней, для которых нужен прогноз, начиная с сегодняшнего
 				vk.messages.send(
 					user_id=event.obj.from_id,
 					message=forecast(ch)
 					)
-
+			
+			elif re.match(r'\s*кто\s+я\s*[?]?\s*', mtext):  # 437991748
+				user = vk.users.get(user_id=event.obj.from_id)
+				# print(vk.users.get(user_ids='470863866, 493610009', fields='online, has_mobile, is_friend'))
+				vk.messages.send(
+					user_id=user[0]['id'],
+					message='''Ваше имя: {}
+							Ваша фамилия: {}
+							Ваш id: {}'''.format(user[0]['first_name'], user[0]['last_name'], user[0]['id'])
+					)
+			
 			else:
 				vk.messages.send(
 						user_id=event.obj.from_id,
@@ -218,3 +161,4 @@ def main():
 
 if __name__ == '__main__':
 	main() # Мне лень было комментировать, потом мне напишешь, я объясню
+# vk-api version = 11.2.1
