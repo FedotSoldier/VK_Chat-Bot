@@ -2,13 +2,25 @@
 import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard
-from Constants import login, password, group_id1, token1, group_id2, token2 # scope=397381
-from Funcs import getrates, getweather, forecast
+from Constants import *
+from Funcs import *
 import re
-# https://gist.github.com/Zaur-Lumanov/0528f3b3ec4f5fe8f8d39449949dcc02 # errors list
-# https://vk.com/topic-81349839_31476126  # 4, 5, 12, 15, 16 # мгновенный yandex поиск
+# errors list
+# https://gist.github.com/Zaur-Lumanov/0528f3b3ec4f5fe8f8d39449949dcc02
+# мгновенный yandex поиск
+# https://vk.com/topic-81349839_31476126  # 4, 5, 12, 15, 16
+
+
 def main():
-	pattern = r'\s*[пП]огода\s+[+-]?\d+\s*'  # Шаблон для проверки правильного ввода запроса погоды(Например: ' Погода  10   ')
+	# Шаблон для проверки правильного ввода запроса погоды(Например: ' Погода  10   ')
+	pattern1 = r'\s*[Пп]огода\s+[+-]?\d+\s*'
+	# Шаблон на проверку соответствия запроса, для отправки данных о пользователе
+	pattern2 = r'\s*кто\s+я\s*[?]?\s*'
+	# Проверка того, что поль-ль хочет получить записи чьей-то стены
+	# pattern3 = r'\s*[Сс]тена\s+(?:[-+]?\d+|[\w\s]+)\s*'
+	pattern3 = r'\s*[Сс]тена\s+[+-]?[\w\W]+'
+	# Проверка - пользователь хочет совершить быстрый поиск
+	pattern4 = r'[Яя]ндекс\s+[\w\W]+'
 
 	keyboard = VkKeyboard(one_time=True)
 
@@ -39,7 +51,8 @@ def main():
 			print('Текст:', event.obj.text)
 			'''
 
-			mtext = event.obj.text.lower() # Текст сообщения в нижнем регистре(message text)
+			# Текст сообщения равен самому себе в нижнем регистре
+			mtext = event.obj.text.lower()
 
 			if mtext == 'привет':
 				vk.messages.send(
@@ -70,10 +83,15 @@ def main():
 					message='Он ещё и комментировать умеет'
 					)
 
-			elif mtext == 'likes.add':  # Поставить лайки всем комментариям записи с идентификатором (id) 4
-				for post in user.wall.get(owner_id=-168296857)['items']:  # Все посты сообщества
+			# Поставить лайки всем комментариям записи сообщества,
+			# у которой идентификатор(id) равен 4
+			elif mtext == 'likes.add':
+				# Перебираем все посты сообщества
+				for post in user.wall.get(owner_id=-168296857)['items']:
 					if post['id'] == 4:  # Лайкаем комментарии только четвертого поста
-						for comment in user.wall.getComments(owner_id=-168296857, post_id=post['id'], need_likes=1)['items']:
+						for comment in user.wall.getComments(owner_id=-168296857,
+																post_id=post['id'],
+																need_likes=1)['items']:
 							if comment['likes']['count'] == 0:
 								user.likes.add(
 									type='comment',  # https://vk.com/dev/likes.add
@@ -93,23 +111,74 @@ def main():
 					message=getweather()
 					)
 
-			elif re.match(pattern, mtext) != None:
-				ch = int(re.findall(r'.\d+', mtext)[0])  # Количество дней, для которых нужен прогноз, начиная с сегодняшнего
+			# Функция из файла Funcs.py
+			elif match(pattern1, mtext):
+				# ch - это количество дней, для которых нужен прогноз, начиная с сегодняшнего
+				ch = int(re.findall(r'.\d+', mtext)[0])
 				vk.messages.send(
 					user_id=event.obj.from_id,
 					message=forecast(ch)
 					)
-			
-			elif re.match(r'\s*кто\s+я\s*[?]?\s*', mtext):  # 437991748
+
+			elif match(pattern2, mtext):
 				user = vk.users.get(user_id=event.obj.from_id)
-				# print(vk.users.get(user_ids='470863866, 493610009', fields='online, has_mobile, is_friend'))
 				vk.messages.send(
 					user_id=user[0]['id'],
 					message='''Ваше имя: {}
 							Ваша фамилия: {}
-							Ваш id: {}'''.format(user[0]['first_name'], user[0]['last_name'], user[0]['id'])
+							Ваш id: {}'''.format(user[0]['first_name'],
+												user[0]['last_name'],
+												user[0]['id'])
 					)
-			
+
+			elif match(pattern3, mtext):
+				# s = строка после ключевого слова "Стена"
+				s = mtext[mtext.find('тена ') + 5:]
+				# По умолчанию мы ищем id профиля, а не сообщества
+				groupid = False
+				try:
+					# id пользователя - это s
+					uid = int(s)
+				# Если это текстовая строка:
+				except ValueError:
+					# Ищем пользователя вк по заданной строке(s)
+					first_user = user.search.getHints(q=s, fields='id')
+					try:
+						uid = int(first_user['items'][0]['profile']['id'])
+					# Если поиск не дал результатов
+					except:
+						try:
+							uid = int(first_user['items'][0]['group']['id'])
+							groupid = True
+						except KeyError:
+							uid = None
+				# Если id получен
+				if uid is not None:
+					if not groupid:
+						wall = user.wall.get(
+										owner_id=uid
+										)
+					else:
+						wall = user.wall.get(
+										owner_id=-uid
+										)
+
+					vk.messages.send(
+							user_id=event.obj.from_id,
+							message=get_wall(wall))
+				else:
+					vk.messages.send(
+							user_id=event.obj.from_id,
+							message='[ X ] Поиск по запросу не дал результата!'
+						)
+
+			elif match(pattern4, mtext):
+				stroka = mtext[mtext.find('ндекс ') + 6:]
+				vk.messages.send(
+					user_id=event.obj.from_id,
+					message=quick_request(stroka)
+					)
+
 			else:
 				vk.messages.send(
 						user_id=event.obj.from_id,
@@ -160,5 +229,5 @@ def main():
 
 
 if __name__ == '__main__':
-	main() # Мне лень было комментировать, потом мне напишешь, я объясню
+	main()  # Мне лень было комментировать, потом мне напишешь, я объясню
 # vk-api version = 11.2.1

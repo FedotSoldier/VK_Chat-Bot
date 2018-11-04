@@ -2,6 +2,14 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
+def match(pattern, stroka):
+	# Если строка, разделенная по шаблону, пустая
+	# (То есть, если строка полностью соответствует шаблону)
+	if ''.join(re.split(pattern, stroka, maxsplit=1)) == '':
+		return True
+	else:
+		return False
+
 def getrates():
 	page = requests.get('https://www.sberometer.ru/cbr/')
 	soup = BeautifulSoup(page.text, 'html.parser')
@@ -10,6 +18,7 @@ def getrates():
 	currency_list = ['USD : ', 'EUR : ', 'GBP : ']
 	for i in range(len(currency_list)):
 		currency_list[i] += courses[i]
+
 	return ' | '.join(currency_list)
 
 def getweather():
@@ -38,6 +47,7 @@ def getweather():
 						   day_temp[3],
 						   night_temp[3],
 						   )
+
 	return answer
 
 def forecast(ch):
@@ -90,3 +100,56 @@ def forecast(ch):
 			break
 
 	return forecast
+
+def get_wall(wall):
+	result = 'Всего найдено записей: {}\n'.format(str(wall['count']))
+	wall = wall['items']
+	# Укорачиваем список до 30 записей
+	try:
+		wall = wall[0:30]
+	except IndexError:
+		wall = wall[0:]
+
+	for post in wall:
+		try:
+			try:
+				imgs = post['copy_history'][0]['attachments'][0]['photo']['sizes']
+				result += imgs[len(imgs) - 1]['url'] + '\n'
+			# Вкладыши к посту(attachments) могут быть раньше
+			except:
+				imgs = post['attachments'][0]['photo']['sizes']
+				result += imgs[len(imgs) - 1]['url'] + '\n'
+		# Может либо не быть ячейки с фото, либо она может быть пустой
+		except Exception as ErrMsg:
+			# print(ErrMsg)
+			# print(post)
+			pass
+
+	return result
+
+def quick_request(stroka):
+	url = 'https://yandex.ru/search/?text={}&lr=213'
+	# Заменяем все кроме букв и цифр на обозначение пробела в яндекс-ссылке("%20")
+	stroka = re.sub(r'\W+', '%20', stroka)
+	url = url.format(stroka)  # Мы получили url запроса.
+	''' Теперь парсим страницу с результатами поиска
+		и если там есть окно с быстрым ответом: 
+		получаем информацию из него '''
+	page = requests.get(url)
+	soup = BeautifulSoup(page.text, 'html.parser')
+	r = soup.select_one('.fact__description ')
+	h = soup.select_one('.fact-answer')
+
+	result = ''
+	# Окна с быстрым ответом может не быть
+	try:
+		result += r.find_all('b')[0].text + '\n'
+		result += r.text + '\n'
+		result += h.find_all('a')[0].get('href')
+	# Если soup.select_one('.class') - 'NoneType' object
+	except AttributeError:
+		result += 'Быстрый ответ не найден\n'
+		result += 'Попробуйте поискать напрямую\n'
+		result += url
+
+	return result
