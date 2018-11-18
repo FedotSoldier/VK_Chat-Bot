@@ -1,5 +1,7 @@
 import re
+import random
 import requests
+import pandas as pd
 from bs4 import BeautifulSoup
 
 def match(pattern, stroka):
@@ -153,3 +155,115 @@ def quick_request(stroka):
 		result += url
 
 	return result
+
+class CityPlayer:
+	def __init__(self):
+		self.table = pd.read_csv('cities.csv',
+								  encoding="windows-1251",
+								  sep=',')
+		self.cities = self.table['city']
+		# Слово, которое компьютер отослал
+		# игроку в последний раз
+		self.last_word = None
+		# Города, которые уже были использованы в игре
+		# Если не будет какого-нибудь элемента, то при операции
+		# "self.used_cities[self.used_cities == 'any_string']"
+		# выскочит ошибка - TypeError: invalid type comparison
+		self.used_cities = pd.Series(['Something'])
+		# Показатель выигрыша компьютера
+		self.comp_won = None
+
+	def next_city(self, cur):
+		# Ответ компьютера игроку
+		answer = None
+		# Проверяем, не хочет ли игрок остановиться:
+		if cur == 'стоп':
+			self.comp_won = True
+			answer = 'Игра окончена. Спасибо за игру!'
+		# Проверяем, не первый ли это ход(игрока)
+		elif self.last_word is not None:
+			# Если игрок назвал слово на последнюю
+			# букву предыдущего города:
+			if cur[0] == self.last_word[-1]:
+				answer = self.get_city(cur)
+
+			# Если игрок назвал город не на последнюю букву предыдущего города:
+			elif cur[0] != self.last_word[-1]:
+				answer = '''Вы должны назвать новый город на последнюю букву предыдущего.
+							Последний названный город: {}'''.format(self.last_word)
+
+		# Если это первый ход(первым ходит игрок):
+		elif self.last_word is None:
+			answer = self.get_city(cur)
+
+		return answer
+
+	def get_city(self, cur):
+		# Если город есть в базе данных:
+		if len(self.cities[self.cities == cur]) > 0:
+			# Удаляем слово из базы данных
+			self.remove_city(cur)
+			# Выбираем из бд все слова, которые начинаются
+			#  на последнюю букву слова, отправленного игроком
+			the_right_words = self.table[self.cities.str.startswith(cur[-1])]['city']
+			# Если остались слова на нужную букву:
+			if len(the_right_words) > 0:
+				# Определяем новые индексы от нуля до конца, а то останутся
+				# те же, которые были у этих городов в общей таблицы
+				the_right_words.index = range(0, len(the_right_words))
+				# Случайное слово, которое будем отправлять игроку
+				cur_word = the_right_words[random.randint(0, len(the_right_words) - 1)]
+				# Записываем этот случайный город(cur_word) в ответ
+				# Пока что это город с маленьким регистром, с замененными на ё е и тд.
+				answer = cur_word
+				# Выбираем соседнюю ячейку таблицы для этого города -
+				# то же название, записанное более приятно для глаз(по правилам)
+				answer = self.table[self.cities == answer]['city_to_output']
+				answer.index = range(len(answer))
+				answer = answer[0]
+				# Удаляем город из базы
+				self.remove_city(cur_word)
+				# Последнее названное(компьютером) слово - это текущее слово
+				self.last_word = cur_word
+				# Если на последнюю букву отправляемого слова нет городов:
+				if len(self.table[self.cities.str.startswith(cur_word[-1])]['city']) == 0:
+					answer += '''\nУвы, больше не осталось городов, начинающихся на букву: "{}".
+								   К сожалению вы проиграли. :('''.format(cur_word[-1])
+					self.comp_won = True
+
+			else:
+				answer = 'Поздравляем. Слов на букву "{}" больше нет. Вы выиграли!!!'.format(cur[-1])
+				self.comp_won = False
+
+		# Если город есть в базе данных использованных городов:
+		elif int(len(self.used_cities[self.used_cities == cur])) > 0:
+			answer = '''Такой город уже был. Попробуйте еще.
+						Предыдущий город: {}'''.format(self.last_word)
+
+		# Если же города, названного игроком, нет ни в одной в базе:
+		else:
+			answer = '''Такого города нет в базе. Попробуйте какой-нибудь другой.
+						Последний город: {}'''.format(self.last_word)
+		return answer
+
+	def remove_city(self, word):
+		self.table = self.table.loc[self.cities != word]
+		self.cities = self.table['city']
+		# Добавляем город в серию(pandas.Series) использованных городов
+		self.used_cities.at[len(self.used_cities)] = word
+
+	def reboot(self):
+		self.table = pd.read_csv('cities.csv',
+								  encoding="windows-1251")
+		self.cities = self.table['city']
+		# Слово, которое компьютер отослал
+		# игроку в последний раз
+		self.last_word = None
+		# Города, которые уже были использованы в игре
+		self.used_cities = pd.Series(['Something'])
+		# Показатель выигрыша компьютера
+		self.comp_won = None
+
+# При отсутствии городов на последнюю букву, компьютер переходит на предыдущую
+# В сложном режиме компьютер выбирает слова, на конечеую букву которых осталось меньше городов в бд.
+# Функция подсказать
