@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
+# vk_api==11.2.1
 import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard
 from Constants import *
 from Funcs import *
+import random
 import re
 # errors list
 # https://gist.github.com/Zaur-Lumanov/0528f3b3ec4f5fe8f8d39449949dcc02
@@ -23,13 +25,15 @@ def main():
 	pattern4 = r'яндекс\s+[\w\W]+'
 	# Проверка того, что поль-ль хочет начать играть в города
 	pattern5 = r'\s*играть\s+в\s+города\s*'
+	# Проверка того, что поль-ль хочет получить случайные медиавложения
+	pattern6 = r'пришли\s+(?:мемы|фильмы|фото)\s*\d*'
 
 	# Объект игрока в города(см. Funcs.py)
 	city_player = CityPlayer()
 	# Показатель того, что игра в города в процессе
 	city_game_is = False
 
-	keyboard = VkKeyboard(one_time=True)
+	keyboard = VkKeyboard(one_time=True)  # Аргумент `one_time` отвечает за исчезновение после нажатия и отправки сообщения
 
 	keyboard.add_button(label='Green', color='positive')
 	keyboard.add_button(label='White', color='default')
@@ -198,6 +202,42 @@ def main():
 								   Чтобы получить подсказку отправьте "подсказка"
 								   Чтобы получить список букв, города на
 								   которую закончились отправьте "/nonused" ''')
+
+				elif match(pattern6, mtext):
+					# Что нужно прислать - часть строки между 'пришли ' и цифрой-количеством
+					substring = re.sub(r'(?:\s*пришли\s+|\s+\d+\s*)', '', mtext)
+					# В каком количестве это нужно прислать - единственная цифра(если есть)
+					count = int(re.search(r'\d+', mtext).group())
+					if count > 10: count = 10
+
+					# Если пользователь хочет мемы:
+					if substring == 'мемы':
+						# Список из строк, определяющих медиавложения
+						attchmnt = []
+						# Выбираем случайную группу из результатов поиска по запросу "мемы" и берем ее id
+						group_id = user.groups.search(q='мемы', count=1000)['items'][random.randint(0,999)]['id'] * -1
+						wall = user.wall.get(owner_id=group_id, count=count)
+						for mem in wall['items']:
+							attchmnt.append('wall{}_{}'.format(
+								str(mem['owner_id']),
+								str(mem['id'])
+								))
+						attchmnt = ','.join(attchmnt)
+						print(attchmnt)
+
+						vk.messages.send(
+								message='Лови',
+								user_id=event.obj.from_id,
+								attachment=attchmnt)
+
+					# Если пользователь хочет фильмы:
+					elif substring == 'фильмы':
+						pass
+
+					# Если же пользователь хочет фото
+					elif substring == 'фото':
+						pass
+
 
 				else:
 					vk.messages.send(
